@@ -33,3 +33,14 @@ def main():
     print("Success!")
 
 main()
+
+def post_to_twitter(prompt_text, product_url):
+    import tweepy
+    
+    auth = tweepy.OAuthHandler(os.getenv("TWITTER_CONSUMER_KEY"), os.getenv("TWITTER_CONSUMER_SECRET"))
+    auth.set_access_token(os.getenv("TWITTER_ACCESS_TOKEN"), os.getenv("TWITTER_ACCESS_TOKEN_SECRET"))
+    api = tweepy.API(auth)
+    
+    post = f"📝 New prompt available!\n\n{prompt_text[:100]}...\n\n🔗 {product_url}\n\n#PromptFactory"
+    api.update_status(post)
+    print("Posted to Twitter!")
