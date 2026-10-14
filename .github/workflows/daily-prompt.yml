@@ -18,6 +18,11 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: Clear Python cache
+        run: |
+          find . -type d -name __pycache__ -exec rm -rf {} +
+          find . -type f -name "*.pyc" -delete
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
