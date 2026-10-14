@@ -2,6 +2,7 @@ name: Daily Prompt Generation
 
 on:
   schedule:
+  repository_dispatch:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
