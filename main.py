@@ -30,6 +30,7 @@ def main():
     print(f"Selected: {category}")
     result = generate_prompt(category)
     print(f"Generated: {result}")
+    post_to_twitter(result, "https://gumroad.com/promptfactory")
     print("Success!")
 
 main()
