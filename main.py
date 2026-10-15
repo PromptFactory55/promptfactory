@@ -172,6 +172,11 @@ def main():
     if store_url:
         text = f"{text}\n\n{store_url}"
     print("----- post -----\n" + text + "\n----------------")
+    print("::notice title=Post text::" + text.replace("%", "%25").replace("\r", "").replace("\n", "%0A"))
+    summary = os.getenv("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write(f"### PromptFactory {now:%Y-%m-%d %H:%M} JST ({audience})\n\n```\n{text}\n```\n")
 
     status, tweet_id, error = "OK", None, ""
     if DRY_RUN:
