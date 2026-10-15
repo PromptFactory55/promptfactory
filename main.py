@@ -133,6 +133,7 @@ def post_to_x(text):
 def send_report(subject, body):
     if not GMAIL_PASSWORD:
         print("[mail] GMAIL_PASSWORD not set; skipping report")
+        print("::warning title=Mail::GMAIL_PASSWORD not set")
         return
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
@@ -143,8 +144,10 @@ def send_report(subject, body):
             s.login(GMAIL_USER, GMAIL_PASSWORD)
             s.send_message(msg)
         print(f"[mail] report sent to {REPORT_TO}")
+        print(f"::notice title=Mail::report sent to {REPORT_TO}")
     except Exception as e:
         print(f"[mail] error: {e}")
+        print(f"::warning title=Mail failed::{type(e).__name__}: {str(e)[:300]}")
 
 
 def main():
