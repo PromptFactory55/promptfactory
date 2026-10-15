@@ -31,9 +31,9 @@ def env(name, default=None):
 CLAUDE_API_KEY = env("CLAUDE_API_KEY")
 CLAUDE_MODEL = env("CLAUDE_MODEL", "claude-haiku-5-5")
 GUMROAD_TOKEN = env("GUMROAD_TOKEN")
-GMAIL_USER = env("GMAIL_USER", "promptfactory55@gmail.com")
+GMAIL_USER = env("GMAIL_USER")
 GMAIL_PASSWORD = env("GMAIL_PASSWORD")
-REPORT_TO = env("REPORT_TO", "visionofartist2@gmail.com")
+REPORT_TO = env("REPORT_TO") or GMAIL_USER
 DRY_RUN = (env("DRY_RUN", "false")).lower() == "true"
 
 # Rotate the three audiences by date so each gets equal exposure.
@@ -46,7 +46,7 @@ CATEGORIES = [
 
 def check_secrets():
     """Log the shape of each secret (never its value) to diagnose setup issues."""
-    for name in ["CLAUDE_API_KEY", "GUMROAD_TOKEN", "GMAIL_PASSWORD",
+    for name in ["CLAUDE_API_KEY", "GUMROAD_TOKEN", "GMAIL_USER", "GMAIL_PASSWORD",
                  "TWITTER_CONSUMER_KEY", "TWITTER_CONSUMER_SECRET",
                  "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_TOKEN_SECRET"]:
         v = env(name, "")
@@ -131,9 +131,9 @@ def post_to_x(text):
 
 
 def send_report(subject, body):
-    if not GMAIL_PASSWORD:
-        print("[mail] GMAIL_PASSWORD not set; skipping report")
-        print("::warning title=Mail::GMAIL_PASSWORD not set")
+    if not (GMAIL_USER and GMAIL_PASSWORD):
+        print("[mail] GMAIL_USER or GMAIL_PASSWORD not set; skipping report")
+        print("::warning title=Mail::GMAIL_USER or GMAIL_PASSWORD not set")
         return
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
@@ -152,8 +152,8 @@ def send_report(subject, body):
             with server:
                 server.login(GMAIL_USER, GMAIL_PASSWORD)
                 server.send_message(msg)
-            print(f"[mail] report sent to {REPORT_TO} via {mode}")
-            print(f"::notice title=Mail::report sent to {REPORT_TO} via {mode}")
+            print(f"[mail] report sent via {mode}")
+            print(f"::notice title=Mail::report sent via {mode}")
             return
         except Exception as e:
             errors.append(f"{mode}: {type(e).__name__}: {str(e)[:200]}")
