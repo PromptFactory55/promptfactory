@@ -83,9 +83,11 @@ def get_store_url():
         products = [p for p in r.json().get("products", []) if p.get("published")]
         if not products:
             print("[gumroad] no published products found")
+            print("::warning title=Gumroad::no published products found")
             return None
         url = products[0].get("short_url")
         print(f"[gumroad] linking to: {products[0].get('name')} ({url})")
+        print(f"::notice title=Gumroad::linking to {products[0].get('name')} ({url})")
         return url
     except Exception as e:  # keep posting even if Gumroad is unreachable
         print(f"[gumroad] error: {e}")
@@ -104,6 +106,7 @@ def generate_post(audience, has_link):
 - プロンプト本体をそのまま使える形で載せる（[ ]で差し替え箇所を示す）
 - 最後に「#PromptFactory」と、関連するハッシュタグを1つ
 - {limit}（Xの文字数制限のため厳守）
+- Markdown記法（```、**、# 見出しなど）は使わない。Xにそのまま貼れるプレーンテキストにする
 - 投稿文だけを出力し、前置きや説明は書かない"""
     response = client.messages.create(
         model=CLAUDE_MODEL,
@@ -114,7 +117,9 @@ def generate_post(audience, has_link):
     text = "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
     if not text.strip():
         raise RuntimeError(f"Claude returned no text (stop_reason={response.stop_reason})")
-    return text.strip()
+    # Drop stray Markdown code fences; X shows them literally.
+    lines = [l for l in text.strip().splitlines() if not l.strip().startswith("```")]
+    return "\n".join(lines).strip()
 
 
 def post_to_x(text):
