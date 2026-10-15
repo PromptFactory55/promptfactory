@@ -40,6 +40,25 @@ CATEGORIES = [
 ]
 
 
+def check_secrets():
+    """Log the shape of each secret (never its value) to diagnose setup issues."""
+    for name in ["CLAUDE_API_KEY", "GUMROAD_TOKEN", "GMAIL_PASSWORD",
+                 "TWITTER_CONSUMER_KEY", "TWITTER_CONSUMER_SECRET",
+                 "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_TOKEN_SECRET"]:
+        raw = os.getenv(name) or ""
+        v = raw.strip()
+        notes = []
+        if not v:
+            notes.append("EMPTY")
+        if v and not v.isascii():
+            notes.append("NON-ASCII CHARACTERS")
+        if any(c.isspace() for c in v):
+            notes.append("CONTAINS SPACE/NEWLINE INSIDE")
+        if name == "CLAUDE_API_KEY" and v and not v.startswith("sk-ant-"):
+            notes.append("does not start with sk-ant-")
+        print(f"[check] {name}: length={len(v)} {'OK' if not notes else ' / '.join(notes)}")
+
+
 def pick_category(today):
     return CATEGORIES[today.toordinal() % len(CATEGORIES)]
 
@@ -122,6 +141,7 @@ def main():
     now = datetime.now(JST)
     key, audience = pick_category(now.date())
     print(f"PromptFactory started {now:%Y-%m-%d %H:%M} JST / category={key}")
+    check_secrets()
 
     store_url = get_store_url()
     text = generate_post(audience, has_link=bool(store_url))
