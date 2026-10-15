@@ -17,13 +17,20 @@ import tweepy
 
 JST = timezone(timedelta(hours=9))
 
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL") or "claude-haiku-5-5"
-GUMROAD_TOKEN = os.getenv("GUMROAD_TOKEN")
-GMAIL_USER = os.getenv("GMAIL_USER") or "promptfactory55@gmail.com"
-GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
-REPORT_TO = os.getenv("REPORT_TO") or "visionofartist2@gmail.com"
-DRY_RUN = (os.getenv("DRY_RUN") or "false").lower() == "true"
+
+def env(name, default=None):
+    """Read a secret and strip stray spaces/newlines picked up when pasting."""
+    value = (os.getenv(name) or "").strip()
+    return value or default
+
+
+CLAUDE_API_KEY = env("CLAUDE_API_KEY")
+CLAUDE_MODEL = env("CLAUDE_MODEL", "claude-haiku-5-5")
+GUMROAD_TOKEN = env("GUMROAD_TOKEN")
+GMAIL_USER = env("GMAIL_USER", "promptfactory55@gmail.com")
+GMAIL_PASSWORD = env("GMAIL_PASSWORD")
+REPORT_TO = env("REPORT_TO", "visionofartist2@gmail.com")
+DRY_RUN = (env("DRY_RUN", "false")).lower() == "true"
 
 # Rotate the three audiences by date so each gets equal exposure.
 CATEGORIES = [
@@ -83,10 +90,10 @@ def generate_post(audience, has_link):
 
 def post_to_x(text):
     client = tweepy.Client(
-        consumer_key=os.getenv("TWITTER_CONSUMER_KEY"),
-        consumer_secret=os.getenv("TWITTER_CONSUMER_SECRET"),
-        access_token=os.getenv("TWITTER_ACCESS_TOKEN"),
-        access_token_secret=os.getenv("TWITTER_ACCESS_TOKEN_SECRET"),
+        consumer_key=env("TWITTER_CONSUMER_KEY"),
+        consumer_secret=env("TWITTER_CONSUMER_SECRET"),
+        access_token=env("TWITTER_ACCESS_TOKEN"),
+        access_token_secret=env("TWITTER_ACCESS_TOKEN_SECRET"),
     )
     resp = client.create_tweet(text=text)
     tweet_id = resp.data["id"]
