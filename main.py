@@ -139,15 +139,26 @@ def send_report(subject, body):
     msg["Subject"] = subject
     msg["From"] = GMAIL_USER
     msg["To"] = REPORT_TO
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
-            s.login(GMAIL_USER, GMAIL_PASSWORD)
-            s.send_message(msg)
-        print(f"[mail] report sent to {REPORT_TO}")
-        print(f"::notice title=Mail::report sent to {REPORT_TO}")
-    except Exception as e:
-        print(f"[mail] error: {e}")
-        print(f"::warning title=Mail failed::{type(e).__name__}: {str(e)[:300]}")
+    errors = []
+    for mode in ("starttls", "ssl"):
+        try:
+            if mode == "ssl":
+                server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30)
+            else:
+                server = smtplib.SMTP("smtp.gmail.com", 587, timeout=30)
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+            with server:
+                server.login(GMAIL_USER, GMAIL_PASSWORD)
+                server.send_message(msg)
+            print(f"[mail] report sent to {REPORT_TO} via {mode}")
+            print(f"::notice title=Mail::report sent to {REPORT_TO} via {mode}")
+            return
+        except Exception as e:
+            errors.append(f"{mode}: {type(e).__name__}: {str(e)[:200]}")
+            print(f"[mail] {mode} failed: {e}")
+    print(f"::warning title=Mail failed::{' || '.join(errors)}")
 
 
 def main():
