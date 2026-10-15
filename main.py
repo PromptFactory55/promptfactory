@@ -141,24 +141,29 @@ def send_report(subject, body):
     msg["To"] = REPORT_TO
     errors = []
     for mode in ("starttls", "ssl"):
+        stage = "connect"
         try:
             if mode == "ssl":
                 server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30)
             else:
                 server = smtplib.SMTP("smtp.gmail.com", 587, timeout=30)
+                stage = "starttls"
                 server.ehlo()
                 server.starttls()
                 server.ehlo()
             with server:
+                stage = "login"
                 server.login(GMAIL_USER, GMAIL_PASSWORD)
+                stage = "send"
                 server.send_message(msg)
             print(f"[mail] report sent via {mode}")
             print(f"::notice title=Mail::report sent via {mode}")
             return
         except Exception as e:
-            errors.append(f"{mode}: {type(e).__name__}: {str(e)[:200]}")
-            print(f"[mail] {mode} failed: {e}")
-    print(f"::warning title=Mail failed::{' || '.join(errors)}")
+            errors.append(f"{mode}@{stage}: {type(e).__name__}: {str(e)[:200]}")
+            print(f"[mail] {mode} failed at {stage}: {e}")
+    user_hint = f"user={GMAIL_USER[:3]}...@{GMAIL_USER.split('@')[-1]} pwlen={len(GMAIL_PASSWORD)}"
+    print(f"::warning title=Mail failed::{user_hint} || {' || '.join(errors)}")
 
 
 def main():
