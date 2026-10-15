@@ -60,6 +60,8 @@ def check_secrets():
         if name == "CLAUDE_API_KEY" and v and not v.startswith("sk-ant-"):
             notes.append("does not start with sk-ant-")
         print(f"[check] {name}: length={len(v)} {'OK' if not notes else ' / '.join(notes)}")
+        if notes:
+            print(f"::notice title=Secret check::{name}: {' / '.join(notes)}")
 
 
 def pick_category(today):
@@ -87,6 +89,7 @@ def get_store_url():
         return url
     except Exception as e:  # keep posting even if Gumroad is unreachable
         print(f"[gumroad] error: {e}")
+        print(f"::warning title=Gumroad::{str(e).split('?')[0][:300]}")
         return None
 
 
@@ -161,6 +164,7 @@ def main():
         except Exception as e:
             status, error = "FAILED", repr(e)
             print(f"[x] error: {error}")
+            print(f"::error title=X post failed::{error[:900]}")
 
     body = (
         f"日時: {now:%Y-%m-%d %H:%M} JST\n"
@@ -177,4 +181,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        # Surface the error as a GitHub annotation (readable via the API).
+        msg = f"{type(e).__name__}: {e}"
+        cause = e.__cause__ or e.__context__
+        if cause:
+            msg += f" | cause: {type(cause).__name__}: {cause}"
+        print(f"::error title=PromptFactory failed::{msg[:900]}")
+        raise
