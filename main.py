@@ -107,10 +107,14 @@ def generate_post(audience, has_link):
 - 投稿文だけを出力し、前置きや説明は書かない"""
     response = client.messages.create(
         model=CLAUDE_MODEL,
-        max_tokens=600,
+        max_tokens=2000,
         messages=[{"role": "user", "content": instruction}],
     )
-    return response.content[0].text.strip()
+    # Newer models may return thinking blocks first; keep only the text.
+    text = "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
+    if not text.strip():
+        raise RuntimeError(f"Claude returned no text (stop_reason={response.stop_reason})")
+    return text.strip()
 
 
 def post_to_x(text):
