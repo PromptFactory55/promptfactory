@@ -19,8 +19,12 @@ JST = timezone(timedelta(hours=9))
 
 
 def env(name, default=None):
-    """Read a secret and strip stray spaces/newlines picked up when pasting."""
-    value = (os.getenv(name) or "").strip()
+    """Read a secret and drop any spaces/newlines picked up when pasting.
+
+    API keys, tokens and Gmail app passwords never contain whitespace, so
+    removing all of it is safe and fixes copy-paste line breaks.
+    """
+    value = "".join((os.getenv(name) or "").split())
     return value or default
 
 
@@ -45,15 +49,14 @@ def check_secrets():
     for name in ["CLAUDE_API_KEY", "GUMROAD_TOKEN", "GMAIL_PASSWORD",
                  "TWITTER_CONSUMER_KEY", "TWITTER_CONSUMER_SECRET",
                  "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_TOKEN_SECRET"]:
-        raw = os.getenv(name) or ""
-        v = raw.strip()
+        v = env(name, "")
         notes = []
         if not v:
             notes.append("EMPTY")
         if v and not v.isascii():
             notes.append("NON-ASCII CHARACTERS")
-        if any(c.isspace() for c in v):
-            notes.append("CONTAINS SPACE/NEWLINE INSIDE")
+        if any(c.isspace() for c in (os.getenv(name) or "").strip()):
+            notes.append("had spaces/newlines (auto-removed)")
         if name == "CLAUDE_API_KEY" and v and not v.startswith("sk-ant-"):
             notes.append("does not start with sk-ant-")
         print(f"[check] {name}: length={len(v)} {'OK' if not notes else ' / '.join(notes)}")
