@@ -1,47 +1,150 @@
 #!/usr/bin/env python3
+"""PromptFactory: daily prompt generation -> X post -> email report.
+
+Phase 1: Claude writes a short, useful prompt for one of three audiences,
+posts it to X with a link to the Gumroad store, and emails a short report.
+Each step logs clearly so GitHub Actions logs show what failed.
+"""
 import os
-import json
-import requests
-from datetime import datetime
+import smtplib
+import sys
+from datetime import datetime, timedelta, timezone
+from email.mime.text import MIMEText
+
 import anthropic
-import random
+import requests
+import tweepy
+
+JST = timezone(timedelta(hours=9))
 
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL") or "claude-haiku-5-5"
 GUMROAD_TOKEN = os.getenv("GUMROAD_TOKEN")
+GMAIL_USER = os.getenv("GMAIL_USER") or "promptfactory55@gmail.com"
 GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
-GMAIL_USER = "promptfactory55@gmail.com"
+REPORT_TO = os.getenv("REPORT_TO") or "visionofartist2@gmail.com"
+DRY_RUN = (os.getenv("DRY_RUN") or "false").lower() == "true"
 
-CATEGORIES = ["marketing/sales", "entrepreneurship", "development"]
-PRICES = {"marketing/sales": 9.99, "entrepreneurship": 11.99, "development": 12.99}
+# Rotate the three audiences by date so each gets equal exposure.
+CATEGORIES = [
+    ("marketing", "マーケティング・営業担当者"),
+    ("entrepreneur", "起業家・スモールビジネスオーナー"),
+    ("developer", "個人開発者"),
+]
 
-def generate_prompt(category):
+
+def pick_category(today):
+    return CATEGORIES[today.toordinal() % len(CATEGORIES)]
+
+
+def get_store_url():
+    """Return the URL of a published Gumroad product, if any."""
+    if not GUMROAD_TOKEN:
+        print("[gumroad] GUMROAD_TOKEN not set; posting without a link")
+        return None
+    try:
+        r = requests.get(
+            "https://api.gumroad.com/v2/products",
+            params={"access_token": GUMROAD_TOKEN},
+            timeout=20,
+        )
+        r.raise_for_status()
+        products = [p for p in r.json().get("products", []) if p.get("published")]
+        if not products:
+            print("[gumroad] no published products found")
+            return None
+        url = products[0].get("short_url")
+        print(f"[gumroad] linking to: {products[0].get('name')} ({url})")
+        return url
+    except Exception as e:  # keep posting even if Gumroad is unreachable
+        print(f"[gumroad] error: {e}")
+        return None
+
+
+def generate_post(audience, has_link):
     client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
-    prompt_text = f"Create a JSON prompt for {category}"
+    limit = "本文は全角120文字以内" if has_link else "本文は全角135文字以内"
+    instruction = f"""あなたは「PromptFactory」というAIプロンプト販売ブランドのSNS担当です。
+{audience}向けに、そのまま使えるChatGPT/Claude用プロンプトを1つ考え、Xに投稿する文章を書いてください。
+
+条件:
+- 1行目は読者の悩みに刺さる短いフック
+- プロンプト本体をそのまま使える形で載せる（[ ]で差し替え箇所を示す）
+- 最後に「#PromptFactory」と、関連するハッシュタグを1つ
+- {limit}（Xの文字数制限のため厳守）
+- 投稿文だけを出力し、前置きや説明は書かない"""
     response = client.messages.create(
-        model="claude-3-5-sonnet-20241022",
-        max_tokens=500,
-        messages=[{"role": "user", "content": prompt_text}]
+        model=CLAUDE_MODEL,
+        max_tokens=600,
+        messages=[{"role": "user", "content": instruction}],
     )
-    return response.content[0].text
+    return response.content[0].text.strip()
+
+
+def post_to_x(text):
+    client = tweepy.Client(
+        consumer_key=os.getenv("TWITTER_CONSUMER_KEY"),
+        consumer_secret=os.getenv("TWITTER_CONSUMER_SECRET"),
+        access_token=os.getenv("TWITTER_ACCESS_TOKEN"),
+        access_token_secret=os.getenv("TWITTER_ACCESS_TOKEN_SECRET"),
+    )
+    resp = client.create_tweet(text=text)
+    tweet_id = resp.data["id"]
+    print(f"[x] posted: https://x.com/i/web/status/{tweet_id}")
+    return tweet_id
+
+
+def send_report(subject, body):
+    if not GMAIL_PASSWORD:
+        print("[mail] GMAIL_PASSWORD not set; skipping report")
+        return
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = GMAIL_USER
+    msg["To"] = REPORT_TO
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as s:
+            s.login(GMAIL_USER, GMAIL_PASSWORD)
+            s.send_message(msg)
+        print(f"[mail] report sent to {REPORT_TO}")
+    except Exception as e:
+        print(f"[mail] error: {e}")
+
 
 def main():
-    print("PromptFactory Started")
-    category = random.choice(CATEGORIES)
-    print(f"Selected: {category}")
-    result = generate_prompt(category)
-    print(f"Generated: {result}")
-    post_to_twitter(result, "https://gumroad.com/promptfactory")
-    print("Success!")
+    now = datetime.now(JST)
+    key, audience = pick_category(now.date())
+    print(f"PromptFactory started {now:%Y-%m-%d %H:%M} JST / category={key}")
 
-main()
+    store_url = get_store_url()
+    text = generate_post(audience, has_link=bool(store_url))
+    if store_url:
+        text = f"{text}\n\n{store_url}"
+    print("----- post -----\n" + text + "\n----------------")
 
-def post_to_twitter(prompt_text, product_url):
-    import tweepy
-    
-    auth = tweepy.OAuthHandler(os.getenv("TWITTER_CONSUMER_KEY"), os.getenv("TWITTER_CONSUMER_SECRET"))
-    auth.set_access_token(os.getenv("TWITTER_ACCESS_TOKEN"), os.getenv("TWITTER_ACCESS_TOKEN_SECRET"))
-    api = tweepy.API(auth)
-    
-    post = f"📝 New prompt available!\n\n{prompt_text[:100]}...\n\n🔗 {product_url}\n\n#PromptFactory"
-    api.update_status(post)
-    print("Posted to Twitter!")
+    status, tweet_id, error = "OK", None, ""
+    if DRY_RUN:
+        status = "DRY RUN (not posted)"
+    else:
+        try:
+            tweet_id = post_to_x(text)
+        except Exception as e:
+            status, error = "FAILED", repr(e)
+            print(f"[x] error: {error}")
+
+    body = (
+        f"日時: {now:%Y-%m-%d %H:%M} JST\n"
+        f"カテゴリ: {audience}\n"
+        f"結果: {status}\n"
+        + (f"投稿: https://x.com/i/web/status/{tweet_id}\n" if tweet_id else "")
+        + (f"エラー: {error}\n" if error else "")
+        + f"\n--- 投稿文 ---\n{text}\n"
+    )
+    send_report(f"[PromptFactory] 日報 {now:%m/%d} {status}", body)
+
+    if status == "FAILED":
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
